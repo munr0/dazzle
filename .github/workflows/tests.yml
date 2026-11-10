@@ -1,31 +1,54 @@
 name: Tests
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
   pull_request:
-    branches: [ main ]
+    branches: [ master ]
+
+permissions:
+  contents: read
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install just and typstyle
+        uses: taiki-e/install-action@v2
+        with:
+          tool: just,typstyle@0.15.2
+
+      - name: Install ruff
+        run: pipx install ruff==0.17.4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Run lints
+        run: just lint
+
   tests:
     strategy:
       # run tests on all versions, even if one fails
       fail-fast: false
       matrix:
-        # add any other Typst versions that your package should support
+        # from `compiler` in typst.toml up to the latest; each Tytanic bundles its own Typst
         typst-version:
-          - typst: 0.12
-            tytanic: 0.1
           - typst: 0.13
             tytanic: 0.2
           - typst: 0.14
             tytanic: 0.3
           - typst: 0.15
             tytanic: 0.4
-            # the docs don't need to build with all versions supported by the package;
-            # the latest one is enough
-            doc: true
+            latest: true
 
-    name: Test for ${{ matrix.typst-version.typst }} (Tytanic ${{ matrix.typst-version.tytanic }}${{ matrix.typst-version.doc && ', with docs' }})
+    name: Test for ${{ matrix.typst-version.typst }} (Tytanic ${{ matrix.typst-version.tytanic }}${{ matrix.typst-version.latest && ', with docs and decode checks' || '' }})
     runs-on: ubuntu-latest
 
     steps:
@@ -36,6 +59,32 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: just
+
+      # Until zebra releases a version with `clear`, build it from the fork as @local/zebra:0.2.0.
+      # Once src/lib.typ imports zebra from @preview, remove the two zebra steps and the wasm target;
+      # keep Rust for the decode checks.
+      - name: Checkout zebra with clear
+        uses: actions/checkout@v6
+        with:
+          repository: munr0/typst-zebra
+          ref: clear
+          path: zebra
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install zebra with clear
+        run: |
+          cargo build --locked --release --target wasm32-unknown-unknown --manifest-path zebra/plugin/Cargo.toml
+          dest="${XDG_DATA_HOME:-$HOME/.local/share}/typst/packages/local/zebra/0.2.0"
+          mkdir -p "$dest/src"
+          cp zebra/src/*.typ "$dest/src/"
+          cp zebra/plugin/target/wasm32-unknown-unknown/release/typst_zebra.wasm "$dest/src/zebra.wasm"
+          cp zebra/LICENSE zebra/README.md "$dest/"
+          sed 's/^version = .*/version = "0.2.0"/' zebra/typst.toml > "$dest/typst.toml"
+          rm -rf zebra
 
       - name: Setup typst
         id: setup-typst
@@ -63,5 +112,19 @@ jobs:
           retention-days: 5
 
       - name: Build docs
-        if: ${{ matrix.typst-version.doc }}
+        if: ${{ matrix.typst-version.latest }}
         run: just doc
+
+      - name: Check the safe sizes are up to date
+        if: ${{ matrix.typst-version.latest }}
+        run: |
+          just sizes
+          git diff --exit-code src/safe-sizes.toml
+
+      - name: Check the safe sizes with decoders
+        if: ${{ matrix.typst-version.latest }}
+        run: just check-sizes
+
+      - name: Check rendered codes decode
+        if: ${{ matrix.typst-version.latest }}
+        run: just check-renders

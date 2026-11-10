@@ -25,7 +25,7 @@ echo "Install dir: $TARGET"
 # ignore rules
 readarray -t ignores < <(grep -v '^#' .typstignore | grep '[^[:blank:]]')
 
-# recursively print all files that are not excluded via .typstignore
+# recursively print all files that are not excluded via .typstignore or git
 function enumerate {
   local root="$1"
   if [[ -f "$root" ]]; then
@@ -56,6 +56,11 @@ function enumerate {
           include=0
         fi
       done
+      # also skip what git ignores
+      if [[ "$include" == 1 ]] && git check-ignore -q "$f" 2>/dev/null; then
+        include=0
+      fi
+
       if [[ "$include" == 1 ]]; then
         enumerate "$f"
       fi

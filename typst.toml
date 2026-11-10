@@ -1,33 +1,26 @@
 # for a description of available keys, see https://github.com/typst/packages/?tab=readme-ov-file#package-format
 
 [package]
-name = ""
+name = "dazzle"
 version = "0.1.0"
 entrypoint = "src/lib.typ"
-authors = []
+authors = ["Munro Anderson <@munr0>"]
 license = "MIT"
-description = ""
-homepage = ""
-repository = ""
-keywords = []
-categories = []
-disciplines = []
-# compiler = ""
+description = "Add a logo to Zebra's natively drawn QR codes."
+repository = "https://github.com/munr0/dazzle"
+keywords = ["qr", "qrcode", "qr-code", "logo", "barcode", "fancyqr"]
+categories = ["components"]
+compiler = "0.13.0"
+
+# left out of the import download
 exclude = [
   ".github",
+  ".gitignore",
+  ".typstignore",
   "docs",
+  "example.svg",
+  "justfile",
   "scripts",
   "tests",
-  ".typstignore",
-  "Justfile",
-  "thumbnail-dark.svg",
-  "thumbnail-light.svg",
+  "tools",
 ]
-
-# [template]
-# path = "template"
-# entrypoint = "main.typ"
-# thumbnail = "thumbnail.png"
-
-# [tool.mytool]
-# foo = "bar"

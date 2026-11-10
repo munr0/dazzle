@@ -1,4 +1,6 @@
 root := justfile_directory()
+python := if os_family() == "windows" { "python" } else { "python3" }
+renders := "tools/decode-check/target/renders"
 
 export TYPST_ROOT := root
 
@@ -6,11 +8,9 @@ export TYPST_ROOT := root
 default:
   @just --list --unsorted
 
-# generate manual
+# generate the README example image
 doc:
-  typst compile docs/manual.typ docs/manual.pdf
-  typst compile docs/thumbnail.typ thumbnail-light.svg
-  typst compile --input theme=dark docs/thumbnail.typ thumbnail-dark.svg
+  typst compile docs/example.typ example.svg
 
 # run test suite
 test *args:
@@ -19,6 +19,37 @@ test *args:
 # update test cases
 update *args:
   tt update {{ args }}
+
+# check formatting and lints
+lint:
+  typstyle --check src docs tests tools
+  cargo fmt --check --manifest-path tools/decode-check/Cargo.toml
+  cargo clippy --quiet --manifest-path tools/decode-check/Cargo.toml -- -D warnings
+  ruff check tools
+  ruff format --check tools
+
+# apply formatting and lint fixes
+fix:
+  typstyle -i src docs tests tools
+  cargo fmt --manifest-path tools/decode-check/Cargo.toml
+  ruff check --fix tools
+  ruff format tools
+
+# regenerate the safe graphic sizes from ISO/IEC 18004
+sizes:
+  {{ python }} tools/safe-sizes.py --output src/safe-sizes.toml
+
+# check the safe graphic sizes with real decoders
+check-sizes *args:
+  cargo run --release --quiet --manifest-path tools/decode-check/Cargo.toml -- {{ args }}
+
+# check that codes rendered by Typst decode
+check-renders:
+  rm -rf {{ renders }}
+  mkdir -p {{ renders }}
+  typst compile --ppi 72 tools/decode-check/renders.typ "{{ renders }}/{0p}.png"
+  typst eval 'query(<payload>).map(it => it.value)' --in tools/decode-check/renders.typ > {{ renders }}/payloads.json
+  cargo run --release --quiet --manifest-path tools/decode-check/Cargo.toml -- --renders {{ renders }}
 
 # package the library into the specified destination folder
 package target:
@@ -41,4 +72,4 @@ uninstall: (remove "@local")
 uninstall-preview: (remove "@preview")
 
 # run ci suite
-ci: test doc
+ci: lint test doc check-renders

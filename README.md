@@ -1,69 +1,83 @@
-# The `my-package` Package
-<div align="center">Version 0.1.0</div>
+# dazzle
 
-A short description about the project and/or client.
+> **dazzle** */ˈdæz.əl/* *n.* — a group of zebras.
 
-## Template adaptation checklist
+Typst QR codes with a logo in the middle, [sized](#safe-size) so they still scan.
+Built on [zebra](https://typst.app/universe/package/zebra), which does the encoding (with the [qrcode](https://crates.io/crates/qrcode) crate) and the [native rendering](https://github.com/rojul/typst-zebra#native-rendering).
+  - The center graphic is just Typst content: an `image`, some text, a symbol — anything you can typeset
+  - Logo fill sized to the limit of the ISO QR standard's error correction
+  - A drop-in superset of zebra: change the import and existing codes still render
 
-- [ ] Fill out `README.md`
-  - Change the `my-package` package name, including code snippets
-  - Check section contents and/or delete sections that don't apply
-- [ ] Check and/or replace `LICENSE` by something that suits your needs
-- [ ] Fill out `typst.toml`
-  - See also the [typst/packages README](https://github.com/typst/packages/?tab=readme-ov-file#package-format)
-- [ ] Adapt Repository URLs in `CHANGELOG.md`
-  - Consider only committing that file with your first release, or removing the "Initial Release" part in the beginning
-- [ ] Adapt or deactivate the release workflow in `.github/workflows/release.yml`
-  - to deactivate it, delete that file or remove/comment out lines 2-4 (`on:` and following)
-  - to use the workflow
-    - [ ] check the values under `env:`, particularly `REGISTRY_FORK`
-    - [ ] if you don't have one, [create a fine-grained personal access token](https://github.com/settings/tokens?type=beta) with [only Contents permission](https://stackoverflow.com/a/75116350/371191) for the `REGISTRY_FORK`
-    - [ ] on this repo, create a secret `REGISTRY_TOKEN` (at `https://github.com/[user]/[repo]/settings/secrets/actions`) that contains the so created token
-
-    if configured correctly, whenever you create a tag `v...`, your package will be pushed onto a branch on the `REGISTRY_FORK`, from which you can then create a pull request against [typst/packages](https://github.com/typst/packages/)
-- [ ] remove/replace the example test case
-- [ ] (add your actual code, docs and tests)
-- [ ] remove this section from the README
-
-## Getting Started
-
-These instructions will get you a copy of the project up and running on the typst web app. Perhaps a short code example on importing the package and a very simple teaser usage.
+![2x2 grid of QR codes, demonstrating package usage](example.svg)
 
 ```typ
-#import "@preview/my-package:0.1.0": *
+#import "@preview/dazzle:0.1.0": qrcode
 
-#show: my-show-rule.with()
-#my-func()
+#qrcode("https://typst.app", graphic: text(36pt, sym.Omega))
 ```
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./thumbnail-dark.svg">
-  <img src="./thumbnail-light.svg">
-</picture>
+## Arguments
 
-### Installation
+- `data`: `str` | `bytes` (positional)
 
-A step by step guide that will tell you how to get the development environment up and running. This should explain how to clone the repo and where to (maybe a link to the typst documentation on it), along with any pre-requisite software and installation steps.
+  As in zebra.
 
-```
-$ First step
-$ Another step
-$ Final step
-```
+- `graphic`: `none` | `content` (default: `none`)
 
-## Usage
+  What to put in the middle, such as an `image`.
+  Images are scaled to fit the gap, keeping their aspect ratio.
 
-A more in-depth description of usage. Any template arguments? A complicated example that showcases most if not all of the functions the package provides? This is also an excellent place to signpost the manual.
+- `graphic-size`: `auto` | `int` | `ratio` (default: `auto`)
 
+  `auto` is the largest square that still decodes.
+  An `int` is a side length in modules, and a `ratio` is a fraction of the code's width.
+  Both are rounded down to an odd number of modules so the square is centred, and neither is checked: anything larger than `auto` may not scan.
+
+- `options`: `dictionary` (default: `(:)`)
+
+  zebra's [QR code options](https://github.com/rojul/typst-zebra#qr-code).
+  With a graphic, `ec-level` defaults to `"h"` instead of zebra's `"m"`, since the higher the level, the bigger the graphic can be.
+  Micro QR codes aren't supported with a graphic.
+
+- `quiet-zone`, `width`, `height`, `module-size`, `fill`, `background-fill`, `clear`
+
+  As in [zebra](https://github.com/rojul/typst-zebra#arguments).
+  With a graphic, `clear` rectangles are cleared as well as the graphic's square.
+
+Examples:
 ```typ
-#import "@preview/my-package:0.1.0": *
+#let url = "https://typst.app"
 
-#let my-complicated-example = ...
+// Smaller than the maximum
+#qrcode(url, graphic: *sym.Omega*, graphic-size: 25%)
+
+// A margin between the logo and the modules
+#qrcode(url, graphic: pad(15%, image("logo.svg")))
+
+// Any Typst fill, flowing round the gap
+#qrcode(url, graphic: [], fill: gradient.conic(..color.map.rainbow))
 ```
 
-## Additional Documentation and Acknowledgments
+## Safe Size
 
-* Project folder on server:
-* Confluence link:
-* Asana board:
-* etc...
+dazzle works out the worst case from the QR code standard, for every version and level, with 2 codewords per block left over for print defects and blur. It holds for any payload and is [checked with real decoders](https://github.com/munr0/dazzle/tree/master/tools).
+
+## Fills
+
+zebra draws the code as one Typst [curve](https://typst.app/docs/reference/visualize/curve/), and dazzle cuts the gap out of it, so `fill` and `background-fill` take anything Typst can paint:
+
+- A colour
+- A gradient, flowing across the whole code
+- A tiling, for dots, stripes or any pattern
+
+## Typesetting Alternatives
+
+[fancyqr](https://ctan.org/pkg/fancyqr) is the go-to for logo QR codes in LaTeX.
+
+| | dazzle (zebra) | fancyqr (qrcode) |
+|-|-|-|
+| Logo size | The largest that scans for any payload | Up to you, confirm it scans |
+| Logo scales with the code | Yes | No |
+| Colours | Any Typst paint: a colour, any gradient or a tiling | Simple gradients, alt-coloured finder patterns |
+| Module styles | Squares, or any pattern you draw with a tiling | 13 built in |
+| Drawing | One seamless vector path | Tile by tile, overlapped to hide seams |
